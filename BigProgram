@@ -86,7 +86,6 @@ while [ exit != 2 ]; do
 		clean_mon "Cleans up monitor mode if not cleaned up properly"\
 		airodump "Airodump-ng + Airmon-ng" \
 		airodump2 "Airodump-ng bssid specific" \
-		#aireplay "Launches aireplay"\
 		pyrit "Pyrit (for caps)" \
 		sslstrip "SSLStrip" \
 		ettercap "Open ettercap GUI" 2>CHOICE \
@@ -215,13 +214,3 @@ while [ exit != 2 ]; do
 	
 	esac
 done
-
-
-
-
-
-
-
-
-
-
